@@ -1,0 +1,29 @@
+
+Moriflow 商用部署與效能優化說明
+
+已完成：
+1. PWA Service Worker 快取
+2. 靜態資源快取設定
+3. 基本網站效能優化
+4. Cloudflare / Netlify 相容設定
+
+建議部署：
+1. Cloudflare Pages
+2. 圖片改接 Cloudinary
+3. 資料庫改接 Supabase
+
+Cloudflare Pages：
+https://pages.cloudflare.com
+
+Cloudinary：
+https://cloudinary.com
+
+Supabase：
+https://supabase.com
+
+建議後續：
+- 商品圖改 WebP
+- 圖片控制 300KB 以下
+- 啟用會員登入
+- 啟用資料庫
+- 訂單同步雲端
