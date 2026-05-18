@@ -1302,3 +1302,264 @@ expenses(store_id, payer, amount, ...)</pre><p class="muted">正式上線需接 
   window.render=function(){ if(typeof ensureV28==='function')ensureV28(); staffPayers(); if(S.mode==='admin'&&S.page==='shareManage'){ $1('#app').innerHTML=shareManagePageV28(); bindLive(); return; } if(S.mode==='admin'&&S.page==='products'){ $1('#app').innerHTML=productsPage(); bindLive(); return; } oldRenderV293(); removeDuplicateBackButtons(); };
   try{ staffPayers(); save(); }catch(e){}
 })();
+
+/* === v30 formal documents upgrade: shipment / order detail / operation report === */
+(function(){
+  const $q=s=>document.querySelector(s), $$q=s=>Array.from(document.querySelectorAll(s));
+  const safe=v=>String(v??'').replace(/[&<>'"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[m]));
+  const money=v=>(typeof fmt==='function'?fmt(Number(v||0)):'$'+Number(v||0).toLocaleString('zh-TW'));
+  const sum=o=>(typeof orderTotal==='function'?orderTotal(o):(o.items||[]).reduce((s,i)=>s+Number(i.price||0)*Number(i.qty||1),0));
+  const itemCost=o=>(typeof orderCost==='function'?orderCost(o):(o.items||[]).reduce((s,i)=>s+Number(i.cost||0)*Number(i.qty||1),0));
+  const expTotal=()=>((S.expenses||[]).reduce((s,e)=>s+Number(e.qty||1)*Number(e.amount||0),0));
+  const brand=()=>S.settings?.name||'MoriFlow Business';
+  const logo=()=>`<div class="docLogo">${safe((brand()[0]||'M').toUpperCase())}</div>`;
+  function ensureFormalNav(){
+    try{
+      const rg=nav.find(g=>g[0]==='reports');
+      if(rg){
+        [['formalDocs','正式文件'],['operationReport','營運報表']].forEach(x=>{if(!rg[2].some(i=>i[0]===x[0]))rg[2].unshift(x)});
+        if(!rg[2].some(i=>i[0]==='shareManage'))rg[2].push(['shareManage','分潤管理']);
+      }
+    }catch(e){}
+  }
+  function docCss(){return `@page{size:A4;margin:12mm}*{box-sizing:border-box}body{margin:0;background:#fff;color:#28221c;font-family:Arial,'Noto Sans TC','Microsoft JhengHei',sans-serif}.printBtn{position:fixed;right:18px;top:18px;border:0;border-radius:12px;background:#b8895f;color:#fff;padding:10px 15px;font-weight:800;box-shadow:0 8px 22px rgba(120,80,40,.18);z-index:10}.docPage{min-height:270mm;padding:2mm 0 0;background:#fff;page-break-after:always}.docPage:last-child{page-break-after:auto}.docHead{display:flex;justify-content:space-between;gap:16px;border-bottom:3px solid #b8895f;padding-bottom:12px;margin-bottom:14px}.brandBlock{display:flex;gap:12px;align-items:center}.docLogo{width:48px;height:48px;border-radius:16px;background:#f1dfc8;color:#8b5e35;display:grid;place-items:center;font-size:22px;font-weight:900}.docHead h1{margin:0;font-size:24px;letter-spacing:.04em}.docHead small,.docMeta{color:#6f6257;font-size:12px;line-height:1.7}.docMeta{text-align:right}.docSectionTitle{font-size:15px;margin:14px 0 8px;color:#6d4a2d}.docInfo,.docTable,.docTotals{width:100%;border-collapse:collapse;font-size:12px;margin:8px 0}.docInfo th,.docInfo td,.docTable th,.docTable td,.docTotals th,.docTotals td{border:1px solid #dccbb8;padding:8px;vertical-align:top}.docInfo th,.docTable th,.docTotals th{background:#fff5e8;text-align:left;color:#6d4a2d}.docTable th{text-align:center}.docTable td.num,.docTotals td{text-align:right}.docTotals{width:40%;margin-left:auto}.docTotals .grand th,.docTotals .grand td{font-size:16px;background:#f1dfc8;font-weight:900}.noteBox{border:1px solid #dccbb8;background:#fffdf9;border-radius:10px;min-height:52px;padding:10px;margin-top:12px}.signGrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:22px}.signBox{border-top:1px solid #c7b5a1;padding-top:8px;text-align:center;color:#6f6257;font-size:12px}.kpiRow{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:12px 0}.kpiBox{border:1px solid #dccbb8;background:#fffaf3;border-radius:12px;padding:12px}.kpiBox span{font-size:12px;color:#6f6257}.kpiBox b{display:block;font-size:20px;margin-top:4px}.bar{height:9px;background:#f3e6d5;border-radius:99px;overflow:hidden}.bar i{display:block;height:100%;background:#b8895f}.subtle{color:#7a6b5b;font-size:12px}.twoCols{display:grid;grid-template-columns:1fr 1fr;gap:14px}.avoid{break-inside:avoid;page-break-inside:avoid}@media(max-width:760px){body{font-size:12px}.docHead{display:block}.docMeta{text-align:left;margin-top:8px}.docInfo,.docTable{font-size:10.5px}.docInfo th,.docInfo td,.docTable th,.docTable td{padding:5px}.docTotals{width:100%}.kpiRow,.twoCols,.signGrid{grid-template-columns:1fr}.printBtn{position:sticky;top:8px;float:right}}@media print{.printBtn{display:none}.docPage{padding-top:0}}`;}
+  function openDoc(title,html){
+    const w=open('','_blank','width=1120,height=820'); if(!w){ if(typeof toast==='function')toast('請允許彈出視窗'); return; }
+    w.document.write(`<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${safe(title)}</title><style>${docCss()}</style></head><body><button class="printBtn" onclick="print()">列印 / 儲存 PDF</button>${html}<script>setTimeout(()=>print(),600)<\/script></body></html>`); w.document.close();
+  }
+  function orderRows(o,withPrice=true){return (o.items||[]).map((i,idx)=>`<tr><td>${idx+1}</td><td>${safe(i.pid||i.sku||'')}</td><td><b>${safe(i.name||'')}</b></td><td>${safe(i.spec||i.variant||'-')}</td><td class="num">${i.qty||1}</td>${withPrice?`<td class="num">${money(i.price)}</td><td class="num">${money(Number(i.price||0)*Number(i.qty||1))}</td>`:''}</tr>`).join('')}
+  function docHeader(title,sub=''){return `<div class="docHead avoid"><div class="brandBlock">${logo()}<div><h1>${safe(title)}</h1><small>${safe(brand())}${sub?'｜'+safe(sub):''}<br>${safe(S.settings?.slogan||'專業訂單與營運管理系統')}</small></div></div><div class="docMeta"><b>列印時間</b><br>${new Date().toLocaleString('zh-TW')}<br><b>文件版本</b><br>MoriFlow v30</div></div>`}
+  function shipmentPage(o,breakAfter=false){const freight=Number(o.shippingFee||o.freight||0),discount=Number(o.discount||0),subtotal=sum(o),grand=subtotal+freight-discount;return `<section class="docPage ${breakAfter?'break':''}">${docHeader('正式出貨單',o.id)}<table class="docInfo avoid"><tr><th>訂單編號</th><td>${safe(o.id)}</td><th>訂單日期</th><td>${safe(String(o.created||'').slice(0,10))}</td><th>出貨狀態</th><td>${safe(o.ship||'-')}</td></tr><tr><th>收件人</th><td>${safe(o.member||'-')}</td><th>電話</th><td>${safe(o.phone||'-')}</td><th>付款狀態</th><td>${safe(o.pay||'-')}</td></tr><tr><th>物流方式</th><td>${safe(o.shipping||'-')}</td><th>付款方式</th><td>${safe(o.payment||'-')}</td><th>會員編號</th><td>${safe(o.memberNo||'-')}</td></tr><tr><th>收件地址 / 門市</th><td colspan="5">${safe(o.address||'-')}</td></tr></table><h2 class="docSectionTitle">商品明細</h2><table class="docTable avoid"><thead><tr><th>#</th><th>商品編號</th><th>商品名稱</th><th>規格</th><th>數量</th><th>單價</th><th>小計</th></tr></thead><tbody>${orderRows(o,true)}</tbody></table><table class="docTotals avoid"><tr><th>商品小計</th><td>${money(subtotal)}</td></tr><tr><th>運費</th><td>${money(freight)}</td></tr><tr><th>折扣</th><td>-${money(discount)}</td></tr><tr class="grand"><th>應收總計</th><td>${money(grand)}</td></tr></table><div class="noteBox avoid"><b>包貨 / 出貨備註</b><br>${safe(o.note||'請依商品明細確認數量、規格與收件資訊。')}</div><div class="signGrid avoid"><div class="signBox">包貨人員</div><div class="signBox">覆核人員</div><div class="signBox">出貨日期</div></div></section>`}
+  function detailPage(o,breakAfter=false){const subtotal=sum(o),cost=itemCost(o),profit=subtotal-cost;return `<section class="docPage ${breakAfter?'break':''}">${docHeader('正式訂購明細',o.id)}<table class="docInfo avoid"><tr><th>訂單編號</th><td>${safe(o.id)}</td><th>建立日期</th><td>${safe(o.created||'-')}</td><th>訂單狀態</th><td>${safe(o.status||'-')}</td></tr><tr><th>顧客姓名</th><td>${safe(o.member||'-')}</td><th>電話</th><td>${safe(o.phone||'-')}</td><th>會員編號</th><td>${safe(o.memberNo||'-')}</td></tr><tr><th>付款方式</th><td>${safe(o.payment||'-')}</td><th>付款狀態</th><td>${safe(o.pay||'-')}</td><th>出貨方式</th><td>${safe(o.shipping||'-')}</td></tr><tr><th>地址 / 門市</th><td colspan="5">${safe(o.address||'-')}</td></tr></table><h2 class="docSectionTitle">訂購商品</h2><table class="docTable avoid"><thead><tr><th>#</th><th>商品編號</th><th>商品名稱</th><th>規格</th><th>數量</th><th>單價</th><th>小計</th></tr></thead><tbody>${orderRows(o,true)}</tbody></table><div class="twoCols avoid"><div class="noteBox"><b>客戶備註</b><br>${safe(o.customerNote||o.note||'無')}</div><table class="docTotals"><tr><th>商品總額</th><td>${money(subtotal)}</td></tr><tr><th>內部成本</th><td>${money(cost)}</td></tr><tr class="grand"><th>預估毛利</th><td>${money(profit)}</td></tr></table></div></section>`}
+  function reportPage(){const orders=S.orders||[], rev=orders.reduce((a,o)=>a+sum(o),0), cst=orders.reduce((a,o)=>a+itemCost(o),0), exp=expTotal(), gross=rev-cst, net=gross-exp, avg=rev/Math.max(orders.length,1); const byProduct={}; orders.forEach(o=>(o.items||[]).forEach(i=>{const k=i.name||'未命名商品'; byProduct[k]=(byProduct[k]||0)+Number(i.price||0)*Number(i.qty||1)})); const top=Object.entries(byProduct).sort((a,b)=>b[1]-a[1]).slice(0,8); const max=Math.max(...top.map(x=>x[1]),1); const payer={}; (S.expenses||[]).forEach(e=>{const p=e.payer||e.staff||e.paymentBy||'未指定'; payer[p]=(payer[p]||0)+Number(e.qty||1)*Number(e.amount||0)}); return `<section class="docPage">${docHeader('正式營運報表','整體營運分析')}<div class="kpiRow avoid"><div class="kpiBox"><span>總營收</span><b>${money(rev)}</b></div><div class="kpiBox"><span>訂單數</span><b>${orders.length}</b></div><div class="kpiBox"><span>平均客單</span><b>${money(avg)}</b></div><div class="kpiBox"><span>淨利</span><b>${money(net)}</b></div></div><div class="kpiRow avoid"><div class="kpiBox"><span>商品成本</span><b>${money(cst)}</b></div><div class="kpiBox"><span>營運支出</span><b>${money(exp)}</b></div><div class="kpiBox"><span>毛利</span><b>${money(gross)}</b></div><div class="kpiBox"><span>淨利率</span><b>${rev?Math.round(net/rev*100):0}%</b></div></div><div class="twoCols"><div class="avoid"><h2 class="docSectionTitle">商品銷售排行</h2><table class="docTable"><tr><th>商品</th><th>銷售額</th><th>比例</th></tr>${top.map(([n,v])=>`<tr><td>${safe(n)}<div class="bar"><i style="width:${Math.round(v/max*100)}%"></i></div></td><td class="num">${money(v)}</td><td class="num">${Math.round(v/Math.max(rev,1)*100)}%</td></tr>`).join('')||'<tr><td colspan="3">尚無資料</td></tr>'}</table></div><div class="avoid"><h2 class="docSectionTitle">付款人員支出統計</h2><table class="docTable"><tr><th>付款人員</th><th>已支付金額</th></tr>${Object.entries(payer).map(([p,v])=>`<tr><td>${safe(p)}</td><td class="num">${money(v)}</td></tr>`).join('')||'<tr><td colspan="2">尚無支出資料</td></tr>'}</table></div></div><h2 class="docSectionTitle">訂單損益明細</h2><table class="docTable"><thead><tr><th>日期</th><th>訂單</th><th>客戶</th><th>付款</th><th>出貨</th><th>營收</th><th>成本</th><th>毛利</th></tr></thead><tbody>${orders.map(o=>`<tr><td>${safe(String(o.created||'').slice(0,10))}</td><td>${safe(o.id)}</td><td>${safe(o.member)}</td><td>${safe(o.pay)}</td><td>${safe(o.ship)}</td><td class="num">${money(sum(o))}</td><td class="num">${money(itemCost(o))}</td><td class="num">${money(sum(o)-itemCost(o))}</td></tr>`).join('')}</tbody></table></section>`}
+  function selected(){const ids=$$q('.orderSelect:checked,.orderCheck:checked').map(x=>x.value); return ids.length?(S.orders||[]).filter(o=>ids.includes(o.id)):(S.orders||[]);}
+  window.printFormalShipment=function(id){const rows=id?[(S.orders||[]).find(o=>o.id===id)].filter(Boolean):selected(); if(!rows.length)return toast&&toast('沒有可列印的訂單'); openDoc(rows.length>1?'批次正式出貨單':'正式出貨單', rows.map((o,i)=>shipmentPage(o,i<rows.length-1)).join(''));};
+  window.printOrderDetailDoc=function(id){const rows=id?[(S.orders||[]).find(o=>o.id===id)].filter(Boolean):selected(); if(!rows.length)return toast&&toast('沒有可列印的訂單'); openDoc(rows.length>1?'批次訂購明細':'正式訂購明細', rows.map((o,i)=>detailPage(o,i<rows.length-1)).join(''));};
+  window.printOperationReport=function(){openDoc('正式營運報表',reportPage())};
+  window.formalDocsPage=function(){return layout(`<div class="grid kpiGrid formalQuick"><button class="card kpi" onclick="printFormalShipment()"><span>正式出貨單</span><b>列印</b><small>A4 / PDF / 手機列印最佳化</small></button><button class="card kpi" onclick="printOrderDetailDoc()"><span>訂購明細</span><b>列印</b><small>客戶對帳與售後確認使用</small></button><button class="card kpi" onclick="printOperationReport()"><span>營運報表</span><b>匯出</b><small>KPI、損益、商品排行、支出統計</small></button><button class="card kpi" onclick="go('shareManage')"><span>分潤報表</span><b>管理</b><small>新增分潤者與自動試算</small></button></div><div class="card"><h3>選擇訂單列印</h3><p class="muted">可先勾選訂單後再列印；未勾選時會輸出全部訂單。</p><div class="toolbar"><button class="btn primary" onclick="printFormalShipment()">列印正式出貨單</button><button class="btn" onclick="printOrderDetailDoc()">列印訂購明細</button><button class="btn" onclick="printOperationReport()">列印營運報表</button></div><div class="tableWrap"><table class="table compactTable"><tr><th><input type="checkbox" onclick="$$('.orderSelect,.orderCheck').forEach(x=>x.checked=this.checked)"></th><th>訂單</th><th>客戶</th><th>付款</th><th>出貨</th><th>金額</th><th>文件</th></tr>${(S.orders||[]).map(o=>`<tr><td><input class="orderSelect" type="checkbox" value="${safe(o.id)}"></td><td><b>${safe(o.id)}</b><br><small>${safe(o.created||'')}</small></td><td>${safe(o.member||'-')}<br><small>${safe(o.phone||'')}</small></td><td>${safe(o.pay||'-')}</td><td>${safe(o.ship||'-')}</td><td>${money(sum(o))}</td><td><button class="btn small" onclick="printFormalShipment('${safe(o.id)}')">出貨單</button><button class="btn small" onclick="printOrderDetailDoc('${safe(o.id)}')">明細</button></td></tr>`).join('')}</table></div></div>`,'正式文件','出貨單、訂購明細、營運報表皆使用專業 A4 PDF 格式。')}
+  const oldOrdersPage=window.ordersPage;
+  window.ordersPage=function(){ensureFormalNav(); const base=oldOrdersPage?oldOrdersPage():''; setTimeout(()=>{document.querySelectorAll('.toolbar').forEach((t,i)=>{if(i===1&&!t.dataset.formal){t.dataset.formal='1';t.insertAdjacentHTML('beforeend','<button class="btn primary" onclick="printFormalShipment()">正式出貨單</button><button class="btn" onclick="printOrderDetailDoc()">訂購明細</button><button class="btn" onclick="printOperationReport()">營運報表</button>')}})},0); return base;};
+  const oldDetail=window.orderDetail;
+  window.orderDetail=function(id){ if(oldDetail)oldDetail(id); setTimeout(()=>{const card=document.querySelector('.toolbar,.card .toolbar'); if(card&&!card.dataset.formalDetail){card.dataset.formalDetail='1'; card.insertAdjacentHTML('beforeend',`<button class="btn primary" onclick="printFormalShipment('${safe(id)}')">正式出貨單</button><button class="btn" onclick="printOrderDetailDoc('${safe(id)}')">訂購明細</button>`)}},0); };
+  const prevRender=window.render;
+  window.render=function(){ensureFormalNav(); if(S.mode==='admin'&&S.page==='formalDocs'){ $q('#app').innerHTML=formalDocsPage(); if(typeof bindLive==='function')bindLive(); return; } if(S.mode==='admin'&&S.page==='operationReport'){ printOperationReport(); S.page='formalDocs'; save&&save(); $q('#app').innerHTML=formalDocsPage(); if(typeof bindLive==='function')bindLive(); return; } return prevRender();};
+  ensureFormalNav();
+})();
+
+/* === v31 customer mobile grid + centered messages + category directory + developer account === */
+(function(){
+  const esc31=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const money31=v=>(typeof fmt==='function'?fmt(v):('NT$ '+Number(v||0).toLocaleString('zh-TW')));
+  function ensureDeveloperAccountV31(){
+    S.accounts=S.accounts||[];
+    S.members=S.members||[];
+    const email='dev@moriflow.test';
+    let acc=S.accounts.find(a=>a.email===email);
+    if(!acc){
+      acc={id:'DEV-MORIFLOW',email,password:'123456',name:'MoriFlow 開發者',role:'both',provider:'demo',verified:true,isOwner:true,isDeveloper:true,storeIds:[S.currentStoreId||'default']};
+      S.accounts.unshift(acc);
+    }else Object.assign(acc,{password:'123456',role:'both',verified:true,isOwner:true,isDeveloper:true,storeIds:[...new Set([...(acc.storeIds||[]),S.currentStoreId||'default'])]});
+    if(!S.members.find(m=>m.email===email)) S.members.unshift({id:'DEV-MEMBER',memberNo:'MB-DEV',name:'MoriFlow 開發者',email,phone:'0900-000-000',level:'測試帳號',total:0,orders:0,points:0,tags:['開發者'],black:false,last:(typeof today==='function'?today():new Date().toISOString().slice(0,10))});
+    S.devLogin={email,password:'123456',note:'測試用，可切換賣家端 / 買家端'};
+  }
+  ensureDeveloperAccountV31();
+
+  window.devQuickLoginV31=function(target='admin'){
+    ensureDeveloperAccountV31();
+    S.currentAccount=S.accounts.find(a=>a.email==='dev@moriflow.test');
+    S.mode=target==='shop'?'shop':'admin';
+    S.page='dashboard';
+    S.shopPage='home';
+    if(typeof save==='function')save();
+    toast(target==='shop'?'已登入開發者帳號｜買家端':'已登入開發者帳號｜賣家端');
+    render();
+  };
+  window.switchBuyerSellerV31=function(){
+    ensureDeveloperAccountV31();
+    if(!S.currentAccount||!S.currentAccount.isDeveloper) S.currentAccount=S.accounts.find(a=>a.email==='dev@moriflow.test');
+    if(S.mode==='shop'){S.mode='admin';S.page='dashboard';toast('已切換至賣家端');}
+    else {S.mode='shop';S.shopPage='home';toast('已切換至買家端');}
+    save&&save(); render();
+  };
+
+  window.toast=function(msg,sub){
+    document.querySelectorAll('.toast,.toastCenter,.moriToastCenter').forEach(x=>x.remove());
+    let main=String(msg||'完成');
+    let detail=sub||'';
+    if(main==='已加入購物車') detail=detail||'';
+    document.body.insertAdjacentHTML('beforeend',`<div class="moriToastCenter" role="status"><div class="moriToastCard"><div class="moriToastIcon">✓</div><b>${esc31(main)}</b>${detail?`<p>${esc31(detail)}</p>`:''}</div></div>`);
+    setTimeout(()=>document.querySelector('.moriToastCenter')?.remove(),2100);
+  };
+
+  function productCard(p){
+    return `<article class="customerProduct shopItem customerProductCompact" data-text="${esc31([p.name,p.category,p.subCategory,p.status,(p.tags||[]).join(' ')].join(' '))}">
+      <div class="customerProductImg" onclick="openShopProduct('${esc31(p.id)}')">${p.image?`<img src="${esc31(p.image)}" loading="lazy">`:'商品圖'}</div>
+      <div class="customerProductBody">
+        <b onclick="openShopProduct('${esc31(p.id)}')">${esc31(p.name)}</b>
+        <small>${esc31(p.category||'')} ${p.subCategory?'｜'+esc31(p.subCategory):''}</small>
+        <strong>${money31(p.price)}</strong>
+        <div class="customerProductActions"><button onclick="addShopCartV31('${esc31(p.id)}')">加入購物車</button><button onclick="toggleFavoriteV31('${esc31(p.id)}')">收藏</button></div>
+      </div>
+    </article>`;
+  }
+  window.addShopCartV31=function(id){
+    const p=(S.products||[]).find(x=>x.id===id); if(!p)return toast('找不到商品');
+    const qty=Number(document.querySelector('#shopQty')?.value||1);
+    const vi=Number(document.querySelector('#shopVariantSelect')?.value||0);
+    const v=(p.variants?._list||[])[vi];
+    S.cart=S.cart||[];
+    S.cart.push({id:p.id,name:p.name,price:Number(v?.price||p.price||0),cost:Number(v?.cost||p.cost||0),qty,variant:v?.name||Object.values(p.variants||{}).filter(Boolean).join(' / ')||'基本款',sku:v?.sku||p.sku});
+    save&&save(); toast('已加入購物車',p.name); render();
+  };
+  window.toggleFavoriteV31=function(id){S.favorites=S.favorites||[];const p=(S.products||[]).find(x=>x.id===id);S.favorites.includes(id)?S.favorites=S.favorites.filter(x=>x!==id):S.favorites.push(id);save&&save();toast(S.favorites.includes(id)?'已加入收藏':'已取消收藏',p?.name||'');render();};
+  window.openShopProduct=function(id){S.selectedShopProduct=id;S.mode='shop';S.shopPage='product';save&&save();render();};
+
+  function customerHeader(title='買家商城'){
+    const count=(S.cart||[]).reduce((a,i)=>a+Number(i.qty||1),0);
+    const dev=S.currentAccount?.isDeveloper?`<button class="devSwitchBtn" onclick="switchBuyerSellerV31()">切換賣家/買家</button>`:'';
+    return `<header class="customerProHeader v31Header"><button class="customerMenuBtn" onclick="openCustomerMenu&&openCustomerMenu()">☰</button><div class="customerBrand" onclick="shopPage('home')"><div class="logo">M</div><div><b>${esc31(S.settings?.name||'MoriFlow')}</b><small>${esc31(title)}</small></div></div>${dev}<div class="customerSearch"><input class="liveFilter" data-target=".shopItem" placeholder="搜尋商品 / 分類 / 關鍵字"></div><button class="customerCartBtn" onclick="shopPage('cart')">🛒${count?`<span>${count}</span>`:''}</button></header>`;
+  }
+  function customerBottom(){return `<nav class="customerBottomNav"><button onclick="shopPage('home')">首頁</button><button onclick="shopPage('category')">分類</button><button onclick="shopPage('search')">搜尋</button><button onclick="shopPage('cart')">購物車</button><button onclick="shopPage('me')">我的</button></nav>`;}
+  function customerLayout(content,title){return `<div class="customerProShell v31Customer">${customerHeader(title)}<main class="customerProMain">${content}</main>${customerBottom()}</div>`;}
+
+  function allCategoryButtons(){
+    const cats=(S.settings?.categories||[]).filter(Boolean);
+    return cats.map(c=>{
+      const subs=(S.settings?.categoryTree?.[c]||[]).filter(Boolean);
+      const count=(S.products||[]).filter(p=>c==='全部商品'||p.category===c).length;
+      return `<section class="categoryDirectoryBlock"><button class="categoryMainBtn ${S.cat===c?'active':''}" onclick="S.cat='${esc31(c)}';S.subCat='';save();render()"><b>${esc31(c)}</b><span>${count} 件</span></button>${subs.length?`<div class="categorySubGrid">${subs.map(s=>`<button class="${S.subCat===s?'active':''}" onclick="S.cat='${esc31(c)}';S.subCat='${esc31(s)}';save();render()">${esc31(s)}<small>${(S.products||[]).filter(p=>p.category===c&&p.subCategory===s).length}</small></button>`).join('')}</div>`:''}</section>`;
+    }).join('');
+  }
+  function currentList(){const cat=S.cat||'全部商品', sub=S.subCat||'';return (S.products||[]).filter(p=>(!cat||cat==='全部商品'||p.category===cat||p.subCategory===cat)&&(!sub||p.subCategory===sub));}
+  function categoryPage(){
+    if(!S.cat)S.cat='全部商品';
+    const list=currentList();
+    return customerLayout(`<section class="customerPanel categoryDirectory"><div class="customerSectionHead"><h2>所有分類</h2><small>點擊分類或子分類直接瀏覽</small></div>${allCategoryButtons()}</section><section class="customerPanel"><div class="customerSectionHead"><h2>${esc31(S.subCat||S.cat||'全部商品')}</h2><small>${list.length} 件商品</small></div><div class="customerProducts v31TwoColProducts">${list.map(productCard).join('')||'<div class="empty">此分類目前沒有商品</div>'}</div></section>`,'商品分類');
+  }
+  function home(){
+    return customerLayout(`<section class="customerHero"><div><span>Komori Storefront</span><h1>${esc31(S.settings?.name||'MoriFlow')}</h1><p>${esc31(S.settings?.slogan||'精選商品與會員購物體驗')}</p></div><button onclick="shopPage('category')">查看所有分類</button></section><section class="customerPanel"><div class="customerSectionHead"><h2>推薦商品</h2><button onclick="shopPage('category')">全部商品</button></div><div class="customerProducts v31TwoColProducts">${(S.products||[]).map(productCard).join('')}</div></section>`,'首頁');
+  }
+  function search(){return customerLayout(`<section class="customerPanel"><h2>搜尋商品</h2><input class="search liveFilter" data-target=".shopItem" placeholder="輸入商品 / 分類 / 關鍵字"><div class="customerProducts v31TwoColProducts">${(S.products||[]).map(productCard).join('')}</div></section>`,'搜尋');}
+  function favorites(){const list=(S.products||[]).filter(p=>(S.favorites||[]).includes(p.id));return customerLayout(`<section class="customerPanel"><h2>收藏商品</h2><div class="customerProducts v31TwoColProducts">${list.map(productCard).join('')||'<div class="empty">目前沒有收藏商品</div>'}</div></section>`,'收藏商品');}
+
+  const prevRender=window.render;
+  window.render=function(){
+    ensureDeveloperAccountV31();
+    if(S.mode==='shop'){
+      let p=S.shopPage||'home', html;
+      if(p==='category') html=categoryPage();
+      else if(p==='search') html=search();
+      else if(p==='favorites') html=favorites();
+      else return prevRender();
+      document.querySelector('#app').innerHTML=html; if(typeof bindLive==='function')bindLive(); return;
+    }
+    return prevRender();
+  };
+
+  const oldAuthPage=window.authPage;
+  window.authPage=function(){
+    const quick=`<div class="card devLoginCard"><h3>開發者測試帳號</h3><p class="muted">Email：<b>dev@moriflow.test</b>　密碼：<b>123456</b></p><div class="toolbar"><button class="btn primary" onclick="devQuickLoginV31('admin')">登入賣家端</button><button class="btn" onclick="devQuickLoginV31('shop')">登入買家端</button></div></div>`;
+    return (oldAuthPage?oldAuthPage():layout('', '登入 / 註冊')).replace('<div class="authLayout">','<div class="authLayout">'+quick);
+  };
+  save&&save();
+})();
+
+/* === v32 login gate + buyer menu drawer + mobile sidebar safe area fix === */
+(function(){
+  const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  function devAccount(){
+    S.accounts=S.accounts||[];
+    let acc=S.accounts.find(a=>a.email==='dev@moriflow.test');
+    if(!acc){
+      acc={id:'DEV-MORIFLOW',email:'dev@moriflow.test',password:'123456',name:'MoriFlow 開發者',role:'both',provider:'demo',verified:true,isOwner:true,isDeveloper:true,storeIds:[S.currentStoreId||'default']};
+      S.accounts.unshift(acc);
+    }else{
+      Object.assign(acc,{password:'123456',role:'both',verified:true,isOwner:true,isDeveloper:true});
+      acc.storeIds=[...new Set([...(acc.storeIds||[]),S.currentStoreId||'default'])];
+    }
+    return acc;
+  }
+  window.devQuickLoginV32=function(target='admin'){
+    S.currentAccount=devAccount();
+    S.mode=target==='shop'?'shop':'admin';
+    S.page='dashboard';
+    S.shopPage='home';
+    S.loginGatePassed=true;
+    if(typeof save==='function')save();
+    if(typeof toast==='function')toast(target==='shop'?'已登入開發者帳號｜買家端':'已登入開發者帳號｜賣家端');
+    render();
+  };
+  window.switchBuyerSellerV32=function(){
+    if(!S.currentAccount) S.currentAccount=devAccount();
+    S.loginGatePassed=true;
+    if(S.mode==='shop'){
+      S.mode='admin'; S.page='dashboard';
+      if(typeof toast==='function')toast('已切換至賣家端');
+    }else{
+      S.mode='shop'; S.shopPage='home';
+      if(typeof toast==='function')toast('已切換至買家端');
+    }
+    if(typeof save==='function')save(); render();
+  };
+  window.openCustomerMenu=function(){
+    document.querySelectorAll('.customerDrawerV32').forEach(x=>x.remove());
+    const acc=S.currentAccount;
+    const canSeller=acc && (acc.isDeveloper||acc.role==='both'||acc.role==='admin'||acc.role==='staff');
+    const html=`<div class="customerDrawerV32"><div class="customerDrawerShade" onclick="closeCustomerMenu()"></div><aside class="customerDrawerPanelV32"><div class="drawerHead"><div class="brand"><div class="logo">M</div><div><b>${esc(S.settings?.name||'MoriFlow')}</b><small>買家選單</small></div></div><button onclick="closeCustomerMenu()">×</button></div><button onclick="closeCustomerMenu();shopPage('home')">首頁</button><button onclick="closeCustomerMenu();shopPage('category')">所有分類</button><button onclick="closeCustomerMenu();shopPage('search')">搜尋商品</button><button onclick="closeCustomerMenu();shopPage('cart')">購物車</button><button onclick="closeCustomerMenu();shopPage('orders')">我的訂單</button><button onclick="closeCustomerMenu();shopPage('me')">會員中心</button>${canSeller?`<hr><button onclick="closeCustomerMenu();switchBuyerSellerV32()">切換賣家端 / 買家端</button>`:''}${!acc?`<hr><button onclick="closeCustomerMenu();shopPage('auth')">登入 / 註冊</button>`:`<hr><button onclick="closeCustomerMenu();logoutAccount&&logoutAccount()">登出</button>`}</aside></div>`;
+    document.body.insertAdjacentHTML('beforeend',html);
+  };
+  window.closeCustomerMenu=function(){document.querySelectorAll('.customerDrawerV32').forEach(x=>x.remove());};
+
+  function gatePage(){
+    devAccount();
+    const html=`<div class="loginGate"><div class="loginGateCard"><div class="logo big">M</div><h1>${esc(S.settings?.name||'MoriFlow Commerce OS')}</h1><p>請先選擇登入身份，測試時可直接使用開發者帳號。</p><div class="devAccountBox"><b>開發者測試帳號</b><span>dev@moriflow.test</span><span>密碼：123456</span></div><div class="loginGateActions"><button class="btn primary" onclick="devQuickLoginV32('admin')">開發者登入賣家端</button><button class="btn" onclick="devQuickLoginV32('shop')">開發者登入買家端</button><button class="btn" onclick="S.mode='admin';S.page='auth';S.loginGatePassed=true;save();render()">賣家登入 / 註冊</button><button class="btn" onclick="S.mode='shop';S.shopPage='auth';S.loginGatePassed=true;save();render()">買家登入 / 註冊</button></div></div></div>`;
+    document.querySelector('#app').innerHTML=html;
+  }
+  const prevRender=window.render;
+  window.render=function(){
+    devAccount();
+    const isAuth=(S.mode==='admin'&&S.page==='auth')||(S.mode==='shop'&&S.shopPage==='auth');
+    if(!S.currentAccount && !S.loginGatePassed && !isAuth){ gatePage(); return; }
+    return prevRender();
+  };
+  if(!S.currentAccount){ S.loginGatePassed=false; S.mode='admin'; S.page='authGate'; if(typeof save==='function')save(); }
+})();
+
+/* === v33 seller mobile product management card fix === */
+(function(){
+  const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const money=v=>(typeof fmt==='function'?fmt(Number(v||0)):'NT$ '+Number(v||0).toLocaleString());
+  function detail(id){ if(typeof productDetailV28==='function') productDetailV28(id); else if(typeof productDetail==='function') productDetail(id); else if(typeof editProduct==='function') editProduct(id); }
+  window.openSellerProductDetailV33=function(id){ detail(id); };
+  window.sellerProductCardV33=function(p){
+    const tags=(p.tags||[]).slice(0,2).map(t=>typeof badge==='function'?badge(t):`<span class="badge">${esc(t)}</span>`).join('');
+    const status=typeof badge==='function'?badge(p.status||'上架'):`<span class="badge">${esc(p.status||'上架')}</span>`;
+    return `<article class="sellerProductCardV33 productRow searchable" data-text="${esc([p.name,p.sku,p.category,p.subCategory,p.status,(p.tags||[]).join(' ')].join(' '))}" onclick="openSellerProductDetailV33('${esc(p.id)}')">
+      <div class="sellerProductThumbV33">${p.image?`<img src="${esc(p.image)}" alt="">`:'商品圖'}</div>
+      <div class="sellerProductInfoV33">
+        <div class="sellerProductTopV33">
+          <div class="sellerProductTitleV33">
+            <b>${esc(p.name||'未命名商品')}</b>
+            <small>${esc(p.sku||p.id||'')}｜${esc(p.category||'未分類')}${p.subCategory?' / '+esc(p.subCategory):''}</small>
+          </div>
+          <input onclick="event.stopPropagation()" class="productCheck" type="checkbox" value="${esc(p.id)}" aria-label="選取商品">
+        </div>
+        <div class="sellerProductMetaV33">
+          <span>售價 <b>${money(p.price)}</b></span>
+          <span>庫存 <b>${Number(p.stock||0)}</b></span>
+        </div>
+        <div class="sellerProductBadgesV33">${status}${tags}</div>
+      </div>
+      <span class="sellerProductChevronV33">›</span>
+    </article>`;
+  };
+  window.productsPage=function(){
+    if(typeof ensureV28==='function') ensureV28();
+    if(!S.productView || window.innerWidth<=760) S.productView='cards';
+    const cats=S.settings?.categories||[];
+    const cards=(S.products||[]).map(sellerProductCardV33).join('') || '<div class="card emptyState">尚未新增商品</div>';
+    const tableRows=(typeof productListRowV293==='function'?(S.products||[]).map(productListRowV293).join(''):(S.products||[]).map(p=>`<tr class="productRow" onclick="openSellerProductDetailV33('${esc(p.id)}')"><td>${esc(p.name)}</td><td>${esc(p.sku)}</td><td>${money(p.price)}</td><td>${p.stock||0}</td></tr>`).join(''));
+    const view=S.productView||'cards';
+    return layout(`<div class="toolbar v33SellerProductToolbar smartFilters noHorizontalOverflow"><input class="filter liveFilter" data-target=".productRow" placeholder="搜尋商品 / 編號 / 分類"><select class="filterSelect" onchange="filterBySelect&&filterBySelect('.productRow',this.value)"><option value="">全部分類</option>${cats.map(c=>`<option>${esc(c)}</option>`).join('')}</select><select class="filterSelect" onchange="filterBySelect&&filterBySelect('.productRow',this.value)"><option value="">全部狀態</option><option>上架</option><option>下架</option><option>預購</option><option>低庫存</option></select><div class="seg desktopViewSwitchV33"><button class="btn ${view==='cards'?'primary':''}" onclick="S.productView='cards';save();render()">卡片式</button><button class="btn ${view==='table'?'primary':''}" onclick="S.productView='table';save();render()">列表式</button></div><button class="btn primary" onclick="go('newProduct')">新增商品</button><button class="btn dangerBtn desktopOnlyV33" onclick="batchDeleteProductsV21&&batchDeleteProductsV21()">批次刪除</button></div>${view==='table'?`<div class="card tableWrap sellerDesktopTableV33"><table class="table compactTable productClearTable"><tr><th><input type="checkbox" onclick="$$('.productCheck').forEach(x=>x.checked=this.checked)"></th><th>商品名稱</th><th>商品編號</th><th>分類</th><th>售價</th><th>成本</th><th>利潤率</th><th>庫存</th><th>狀態</th><th>操作</th></tr>${tableRows}</table></div>`:''}<div class="sellerProductListV33 ${view==='table'?'mobileOnlyV33':''}">${cards}</div>`,'商品管理','手機版已改為卡片式，只顯示必要資訊；點擊商品即可進入詳細資料。');
+  };
+})();
