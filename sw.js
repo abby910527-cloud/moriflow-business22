@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'moriflow-cache-v1';
+const CACHE_NAME = 'moriflow-cache-v293';
 const urlsToCache = [
   '/',
   '/index.html',
