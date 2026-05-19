@@ -1,4 +1,4 @@
-const CACHE_NAME = 'moriflow-cache-v35-order-detail-fixed';
+const CACHE_NAME = 'moriflow-cache-v36-brand-order-pages';
 const ASSETS = ['./', './index.html', './style.css?v=35', './app.js?v=35', './manifest.json'];
 
 self.addEventListener('install', event => {

@@ -1623,3 +1623,44 @@ expenses(store_id, payer, amount, ...)</pre><p class="muted">正式上線需接 
     return prevRender();
   };
 })();
+
+/* === v36 MoriFlow brand-style buyer orders & detail (replace v34 Shopee-like UI) === */
+(function(){
+  const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const money=v=>(typeof fmt==='function'?fmt(Number(v||0)):'NT$ '+Number(v||0).toLocaleString('zh-TW'));
+  const total=o=>(typeof orderTotal==='function'?orderTotal(o):(o.items||[]).reduce((s,i)=>s+Number(i.price||0)*Number(i.qty||1),0));
+  const statusOf=o=>o.status||o.ship||o.pay||'訂單成立';
+  const dateOf=o=>String(o.created||o.date||'').slice(0,10).replaceAll('-','/');
+  function getOrder(id){return (S.orders||[]).find(o=>String(o.id)===String(id))||(S.orders||[])[0]||null;}
+  function brandTop(title, back){
+    const count=(S.cart||[]).reduce((s,i)=>s+Number(i.qty||1),0);
+    return `<header class="mfBuyerTop"><button class="mfIconBtn" onclick="${back||"shopPage('me')"}">‹</button><strong>${esc(title)}</strong><div><button class="mfIconBtn" onclick="shopPage('cart')">🛒${count?`<i>${count}</i>`:''}</button><button class="mfIconBtn" onclick="openCustomerMenu&&openCustomerMenu()">⋯</button></div></header>`;
+  }
+  window.openBuyerOrderDetailV36=function(id){S.mode='shop';S.shopPage='orderDetail';S.selectedBuyerOrder=id;save();render();};
+  function itemLine(o){return (o.items||[]).map(i=>`${esc(i.name)} × ${Number(i.qty||1)}`).join('、')||'尚無商品';}
+  function tabs(){const f=S.customerOrderFilter||'all';const arr=[['all','全部'],['pay','待付款'],['ship','待出貨'],['done','已完成']];return `<div class="mfOrderTabs">${arr.map(([k,t])=>`<button class="${f===k?'active':''}" onclick="S.customerOrderFilter='${k}';save();render()">${t}</button>`).join('')}</div>`;}
+  function filteredOrders(){let os=[...(S.orders||[])];let f=S.customerOrderFilter||'all';if(f==='pay')os=os.filter(o=>/待付款/.test(o.pay||o.status||''));if(f==='ship')os=os.filter(o=>/待出貨|備貨|出貨/.test(o.ship||o.status||''));if(f==='done')os=os.filter(o=>/完成|已送達/.test(o.status||o.ship||''));return os;}
+  function ordersPage(){
+    const os=filteredOrders();
+    return `<div class="mfBuyerShell">${brandTop('我的訂單',"shopPage('me')")}<main class="mfOrderHome"><section class="mfOrderHero"><div><span>MoriFlow</span><h1>訂單總覽</h1><p>查看付款、出貨與訂單明細</p></div><b>${(S.orders||[]).length}</b></section>${tabs()}<section class="mfOrderList">${os.map(o=>`<article class="mfOrderCard" onclick="openBuyerOrderDetailV36('${esc(o.id)}')"><div class="mfOrderCardHead"><b>${esc(o.id)}</b><span>${esc(statusOf(o))}</span></div><p>${itemLine(o)}</p><div class="mfOrderCardMeta"><small>${dateOf(o)||'未建立日期'}</small><strong>${money(total(o))}</strong></div><div class="mfOrderCardFoot"><button onclick="event.stopPropagation();openBuyerOrderDetailV36('${esc(o.id)}')">查看明細</button><em>›</em></div></article>`).join('')||'<div class="mfEmptyOrder">目前沒有符合條件的訂單</div>'}</section></main></div>`;
+  }
+  function progress(o){const txt=[o.pay,o.ship,o.status].join(' ');let idx=/完成|送達/.test(txt)?4:/已出貨|出貨/.test(txt)?3:/理貨|備貨/.test(txt)?2:/撿貨|揀貨/.test(txt)?1:0;let labels=['成立','撿貨','理貨','出貨','完成'];return `<div class="mfFlow">${labels.map((l,i)=>`<div class="${i<=idx?'done':''} ${i===idx?'now':''}"><i></i><span>${l}</span></div>`).join('')}</div>`;}
+  function detailPage(){
+    const o=getOrder(S.selectedBuyerOrder); if(!o) return `<div class="mfBuyerShell">${brandTop('訂單明細',"shopPage('orders')")}<main class="mfOrderDetail"><div class="mfDetailCard">目前沒有訂單</div></main></div>`;
+    const member=(S.members||[]).find(m=>m.name===o.member)||{};
+    const discount=Number(o.discount||0), freight=Number(o.shippingFee||0), subtotal=total(o), grand=subtotal+freight-discount;
+    return `<div class="mfBuyerShell">${brandTop('訂單明細',"shopPage('orders')")}<main class="mfOrderDetail">
+      <section class="mfDetailSummary"><span>${esc(statusOf(o))}</span><h1>${esc(o.id)}</h1><p>${dateOf(o)}　${esc(o.pay||'待付款')} / ${esc(o.ship||'待出貨')}</p>${progress(o)}</section>
+      <section class="mfDetailCard"><h2>收件資訊</h2><div class="mfRows"><div><span>收件人</span><b>${esc(o.member||member.name||'顧客')} ${esc(o.phone||member.phone||'')}</b></div><div><span>配送方式</span><b>${esc(o.shipping||'未設定')}</b></div><div><span>地址</span><b>${esc(o.address||member.address||'尚未填寫')}</b></div><div><span>發票</span><b>電子發票 / 未開立</b></div></div></section>
+      <section class="mfDetailCard"><h2>購買商品</h2><div class="mfItemList">${(o.items||[]).map(i=>`<div class="mfItem"><div class="mfThumb">${i.image?`<img src="${esc(i.image)}">`:'商品圖'}</div><div><b>${esc(i.name)}</b><small>${esc(i.spec||i.variant||'基本款')}</small><span>${money(i.price)} × ${Number(i.qty||1)}</span></div></div>`).join('')||'<p>尚無商品資料</p>'}</div></section>
+      <section class="mfDetailCard"><h2>金額明細</h2><div class="mfPrice"><div><span>商品小計</span><b>${money(subtotal)}</b></div><div><span>運費</span><b>${money(freight)}</b></div><div><span>折扣</span><b>-${money(discount)}</b></div><div class="total"><span>訂單總額</span><b>${money(grand)}</b></div></div></section>
+      <section class="mfDetailActions"><button onclick="toast('已送出客服詢問')">聯絡客服</button><button onclick="shopPage('orders')">返回訂單</button></section>
+    </main></div>`;
+  }
+  const prev=window.render;
+  window.render=function(){
+    if(S.mode==='shop' && S.shopPage==='orders'){document.querySelector('#app').innerHTML=ordersPage(); if(typeof bindLive==='function')bindLive(); return;}
+    if(S.mode==='shop' && S.shopPage==='orderDetail'){document.querySelector('#app').innerHTML=detailPage(); if(typeof bindLive==='function')bindLive(); return;}
+    return prev();
+  };
+})();
