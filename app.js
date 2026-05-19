@@ -1563,3 +1563,63 @@ expenses(store_id, payer, amount, ...)</pre><p class="muted">正式上線需接 
     return layout(`<div class="toolbar v33SellerProductToolbar smartFilters noHorizontalOverflow"><input class="filter liveFilter" data-target=".productRow" placeholder="搜尋商品 / 編號 / 分類"><select class="filterSelect" onchange="filterBySelect&&filterBySelect('.productRow',this.value)"><option value="">全部分類</option>${cats.map(c=>`<option>${esc(c)}</option>`).join('')}</select><select class="filterSelect" onchange="filterBySelect&&filterBySelect('.productRow',this.value)"><option value="">全部狀態</option><option>上架</option><option>下架</option><option>預購</option><option>低庫存</option></select><div class="seg desktopViewSwitchV33"><button class="btn ${view==='cards'?'primary':''}" onclick="S.productView='cards';save();render()">卡片式</button><button class="btn ${view==='table'?'primary':''}" onclick="S.productView='table';save();render()">列表式</button></div><button class="btn primary" onclick="go('newProduct')">新增商品</button><button class="btn dangerBtn desktopOnlyV33" onclick="batchDeleteProductsV21&&batchDeleteProductsV21()">批次刪除</button></div>${view==='table'?`<div class="card tableWrap sellerDesktopTableV33"><table class="table compactTable productClearTable"><tr><th><input type="checkbox" onclick="$$('.productCheck').forEach(x=>x.checked=this.checked)"></th><th>商品名稱</th><th>商品編號</th><th>分類</th><th>售價</th><th>成本</th><th>利潤率</th><th>庫存</th><th>狀態</th><th>操作</th></tr>${tableRows}</table></div>`:''}<div class="sellerProductListV33 ${view==='table'?'mobileOnlyV33':''}">${cards}</div>`,'商品管理','手機版已改為卡片式，只顯示必要資訊；點擊商品即可進入詳細資料。');
   };
 })();
+
+/* === v34 Shopee-style mobile buyer order detail === */
+(function(){
+  const h=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m));
+  const money=v=>(typeof fmt==='function'?fmt(Number(v||0)):'NT$ '+Number(v||0).toLocaleString('zh-TW'));
+  const total=o=>(typeof orderTotal==='function'?orderTotal(o):(o.items||[]).reduce((s,i)=>s+Number(i.price||0)*Number(i.qty||1),0));
+  function firstOrder(){return (S.orders||[])[0]||null}
+  function getOrder(id){return (S.orders||[]).find(o=>String(o.id)===String(id))||firstOrder()}
+  function mobileTop(title='訂單明細'){
+    const cartCount=(S.cart||[]).reduce((a,i)=>a+Number(i.qty||1),0);
+    return `<header class="v34OrderTop"><button onclick="shopPage('orders')" aria-label="返回">‹</button><b>${h(title)}</b><div><button onclick="shopPage('cart')" aria-label="購物車">🛒${cartCount?`<span>${cartCount}</span>`:''}</button><button onclick="openCustomerMenu&&openCustomerMenu()" aria-label="更多">•••</button></div></header>`;
+  }
+  function stepIndex(o){
+    const s=[o.pay,o.ship,o.status].join(' ');
+    if(/完成|已送達/.test(s)) return 4;
+    if(/已出貨|出貨/.test(o.ship||'')) return 3;
+    if(/理貨|備貨/.test(o.ship||'')) return 2;
+    if(/撿貨|揀貨/.test(o.ship||'')) return 1;
+    return 0;
+  }
+  function timeline(o){
+    const labels=['收到訂單','揀貨','理貨','出貨','已送達'];
+    const idx=stepIndex(o);
+    return `<div class="v34Timeline">${labels.map((x,i)=>`<div class="${i<=idx?'done':''} ${i===idx?'now':''}"><i></i><span>${x}</span><small>${i<=idx?h(String(o.updated||o.created||'').slice(5,16).replace('-','/')):'-'}</small></div>`).join('')}</div>`;
+  }
+  window.openBuyerOrderDetailV34=function(id){S.mode='shop';S.shopPage='orderDetail';S.selectedBuyerOrder=id;save();render();};
+  window.shopOrderDetailV34=function(){
+    const o=getOrder(S.selectedBuyerOrder); if(!o) return `<div class="customerProShell">${mobileTop('訂單明細')}<main class="v34OrderPage"><div class="v34Card">目前沒有訂單</div></main></div>`;
+    const discount=Number(o.discount||50), freight=Number(o.shippingFee||0), grand=total(o)+freight-discount;
+    const member=(S.members||[]).find(m=>m.name===o.member)||{};
+    return `<div class="customerProShell v34OrderShell">${mobileTop('訂單明細')}<main class="v34OrderPage">
+      <section class="v34Card"><div class="v34CardTitle"><h2>訂單資訊</h2></div><div class="v34InfoRows">
+        <div><span>訂單編號</span><b>${h(String(o.id||'').replace('O-',''))}</b></div>
+        <div><span>訂單日期</span><b>${h(String(o.created||'').slice(0,10).replaceAll('-','/'))}</b></div>
+        <div><span>訂單狀態</span><b>${h(o.status||'訂單成立')}</b></div>
+        <div><span>收件資訊</span><b>${h((o.member||member.name||'顧客').slice(0,1))}*${h((o.member||'顧客').slice(-1))} ${h(o.phone||member.phone||'')}</b></div>
+        <div><span>配送方式</span><b>${h(o.shipping||member.shipping||'宅配')} / ${h(o.address||member.address||'尚未填寫地址')} <em onclick="shopPage('me')">更改地址</em></b></div>
+        <div><span>發票</span><b><em>電子發票證明聯</em></b></div>
+      </div><div class="v34Actions"><button>我要退貨</button><button>問答紀錄</button></div></section>
+      <section class="v34Card"><div class="v34CardTitle"><h2>購買商品</h2></div><div class="v34ShipLine"><span>倉庫出貨</span><b>${h(String(o.updated||o.created||'').slice(0,10).replaceAll('-','/'))} 由［${h(S.settings?.name||'MoriFlow')}］出貨 ›</b></div>${timeline(o)}<div class="v34Items">${(o.items||[]).map(i=>`<div class="v34Item"><div class="v34Thumb">${i.image?`<img src="${h(i.image)}">`:'商品圖'}</div><div><b>${h(i.name)}</b><small>${h(i.spec||i.variant||'基本款')}　${money(i.price)}</small></div></div>`).join('')}</div></section>
+      <section class="v34Card"><div class="v34CardTitle"><h2>相關折扣與折抵</h2><button>−</button></div><div class="v34PriceRow"><span>P幣折抵</span><b>-${money(discount).replace('NT$ ','$')}</b></div></section>
+      <section class="v34Card collapsed"><div class="v34CardTitle"><h2>付款資訊</h2><button>＋</button></div><div class="v34PriceRow total"><span>總價</span><b>${money(grand)}</b></div></section>
+      <section class="v34Card"><div class="v34CardTitle"><h2>登記活動</h2><a>查看所有活動</a></div><p>本次訂單含有滿額登記抽獎活動商品，請前往查看是否已符合登記喔！</p><div class="v34EventList"><div><span>登記</span> 居家指定品單筆滿1680元抽1000P幣 ›</div><div><span>登記</span> 綁定會員，滿4千登記抽500P單筆… ›</div><div><span>登記</span> APP限定-全站指定品單筆… ›</div></div></section>
+      <section class="v34Card"><div class="v34CardTitle"><h2>追蹤我們</h2><a>加入粉絲團，超多好禮等你拿！</a></div><div class="v34Social"><button>f<br><small>Facebook</small></button><button>◎<br><small>Instagram</small></button><button>LINE<br><small>LINE</small></button><button>▶<br><small>YouTube</small></button></div></section>
+      <button class="v34Service">客服</button>
+    </main></div>`;
+  };
+  function ordersV34(){
+    const os=S.orders||[];
+    return (typeof customerLayout==='function'?customerLayout(`<section class="customerPanel"><h2>我的訂單</h2><div class="orderTabs"><button onclick="S.customerOrderFilter='all';save();render()">全部</button><button onclick="S.customerOrderFilter='pay';save();render()">待付款</button><button onclick="S.customerOrderFilter='ship';save();render()">待出貨</button></div><div class="list">${os.map(o=>`<div class="row v34OrderListRow" onclick="openBuyerOrderDetailV34('${h(o.id)}')"><div><b>${h(o.id)}</b><small>${(o.items||[]).map(i=>h(i.name)+' x'+(i.qty||1)).join('、')}</small></div><div><b>${money(total(o))}</b><small>查看明細 ›</small></div></div>`).join('')||'<div class="empty">目前沒有訂單</div>'}</div></section>`,'我的訂單'):`<div>${os.map(o=>`<button onclick="openBuyerOrderDetailV34('${h(o.id)}')">${h(o.id)}</button>`).join('')}</div>`);
+  }
+  const prevRender=window.render;
+  window.render=function(){
+    if(S.mode==='shop'){
+      if(S.shopPage==='orderDetail'){document.querySelector('#app').innerHTML=shopOrderDetailV34(); if(typeof bindLive==='function')bindLive(); return;}
+      if(S.shopPage==='orders'){document.querySelector('#app').innerHTML=ordersV34(); if(typeof bindLive==='function')bindLive(); return;}
+    }
+    return prevRender();
+  };
+})();
