@@ -1566,7 +1566,7 @@ expenses(store_id, payer, amount, ...)</pre><p class="muted">正式上線需接 
 
 /* === v34 Shopee-style mobile buyer order detail === */
 (function(){
-  const h=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m));
+  const h=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
   const money=v=>(typeof fmt==='function'?fmt(Number(v||0)):'NT$ '+Number(v||0).toLocaleString('zh-TW'));
   const total=o=>(typeof orderTotal==='function'?orderTotal(o):(o.items||[]).reduce((s,i)=>s+Number(i.price||0)*Number(i.qty||1),0));
   function firstOrder(){return (S.orders||[])[0]||null}
